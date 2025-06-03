@@ -554,7 +554,7 @@
         <button onclick="uploadRecipe()">Fazer Upload</button>
         <div id="uploadedRecipesList">
             <h3>Receitas Carregadas:</h3>
-            <p id="noRecipesMessage" style="text-align: center; color: #888; display: none;">Nenhuma receita carregada ainda.</p>
+            <p id="noRecipesMessage" style="text-align: center; color: #888;">Nenhuma receita carregada ainda.</p>
         </div>
     </div>
   </div>
@@ -668,14 +668,14 @@
     </div>
   </div>
 
-  <audio id="alarmSound" src="alarm.mp3" preload="auto"></audio>
+  <audio id="alarmSound" src="alarm.mp3" preload="auto" loop></audio>
   <script>
     // --- Configuração do IndexedDB ---
     const DB_NAME = 'HarleyBeerDB';
     const DB_VERSION = 1; // Incremente esta versão se alterar a estrutura do banco de dados
     const BREWING_STORE_NAME = 'brewingRecords';
     const RECIPES_STORE_NAME = 'recipes';
-    let db;
+    let db; // Variável global para armazenar a instância do banco de dados
 
     function openDB() {
         return new Promise((resolve, reject) => {
@@ -694,7 +694,7 @@
             };
 
             request.onsuccess = function(event) {
-                db = event.target.result;
+                db = event.target.result; // Atribui a instância do banco de dados à variável global
                 resolve(db);
             };
 
@@ -707,6 +707,10 @@
 
     // --- Funções auxiliares para IndexedDB ---
     function getObjectStore(storeName, mode) {
+        if (!db) {
+            console.error("IndexedDB não está inicializado. Tente recarregar a página.");
+            throw new Error("IndexedDB not initialized.");
+        }
         const transaction = db.transaction([storeName], mode);
         return transaction.objectStore(storeName);
     }
@@ -802,6 +806,8 @@
         if (remainingSeconds > 0) { // Inicia apenas se houver tempo definido
             isRunning = true;
             timer = setInterval(updateTimer, 1000);
+            alarmSound.pause(); // Para o alarme se estiver tocando ao iniciar
+            alarmSound.currentTime = 0;
         } else {
             alert('Por favor, defina um tempo para o cronômetro.');
         }
@@ -825,17 +831,15 @@
       hoursInput.value = "0";
       minutesInput.value = "0";
       secondsInput.value = "0";
+      alarmSound.pause(); // Para o alarme ao resetar
+      alarmSound.currentTime = 0;
     }
 
     // Função para tocar o alarme
     function playAlarm() {
         if (alarmSound) {
-            alarmSound.play();
-            // Opcional: para o alarme depois de alguns segundos
-            setTimeout(() => {
-                alarmSound.pause();
-                alarmSound.currentTime = 0; // Reinicia o som
-            }, 5000); // Toca por 5 segundos
+            alarmSound.loop = true; // Define para repetir
+            alarmSound.play().catch(e => console.error("Erro ao tocar alarme:", e));
         } else {
             console.warn("Arquivo de áudio do alarme não encontrado ou não carregado.");
         }
@@ -1059,8 +1063,12 @@
 
     function displayUploadedRecipes(recipes) {
         const listContainer = document.getElementById('uploadedRecipesList');
-        listContainer.innerHTML = '<h3>Receitas Carregadas:</h3>';
+        const recipesHeading = listContainer.querySelector('h3'); // Mantém o título
         const noRecipesMessage = document.getElementById('noRecipesMessage');
+
+        // Limpa apenas os itens de receita existentes, mantendo o título
+        let currentRecipeItems = listContainer.querySelectorAll('.recipe-item');
+        currentRecipeItems.forEach(item => item.remove());
 
         if (recipes.length === 0) {
             noRecipesMessage.style.display = 'block';
@@ -1185,17 +1193,19 @@
       adjustContentPadding(); // Ajusta o padding inicial
       updateCurrentDateTime(); // Exibe a data e hora atual
       setInterval(updateCurrentDateTime, 1000); // Atualiza a cada segundo
-      // setBrewDateTimeToCurrent(); REMOVIDO daqui para ser chamado apenas ao abrir a aba Registros
 
       // Abre o banco de dados e então carrega os dados
       try {
           await openDB();
           loadBrewingRecords(); // Carrega os registros de brassagem
-          loadUploadedRecipes(); // Carrega as receitas salvas
+          // loadUploadedRecipes(); // Esta chamada é movida para openTab('Principal')
       } catch (error) {
           console.error("Falha ao inicializar o banco de dados:", error);
           alert("Não foi possível inicializar o banco de dados local. Algumas funcionalidades podem não estar disponíveis.");
       }
+
+      // Garante que a aba 'Principal' esteja ativa no carregamento inicial
+      openTab({ currentTarget: document.querySelector('.tab-button.active') }, 'Principal');
     });
 
     window.addEventListener('resize', adjustContentPadding); // Ajusta o padding ao redimensionar
