@@ -1,0 +1,1204 @@
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/service-worker.js').then(function(registration) {
+        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+      }, function(err) {
+        console.log('ServiceWorker registration failed: ', err);
+      });
+    });
+  }
+</script>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <link rel="manifest" href="manifest.json">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Harley Beer Controle</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Harley Beer Controle">
+  <link rel="apple-touch-icon" href="Icone.png">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #1a1a1a;
+      color: #f0f0f0;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 10vh;
+    }
+
+    /* Container principal para todas as seções fixas (cronômetro, título, logo, abas) */
+    .fixed-header-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: #1a1a1a; /* Cor de fundo para o cabeçalho fixo */
+      z-index: 1000; /* Garante que fique acima do conteúdo rolado */
+      box-shadow: 0 2px 5px rgba(0,0,0,0.5); /* Sombra para destacá-lo */
+      padding-bottom: 5px; /* Pequeno padding na parte inferior do cabeçalho fixo */
+    }
+
+    h1 {
+      text-align: center;
+      color: #ff6600;
+      padding: 10px 0 5px; /* Ajustado padding */
+      margin: 0;
+    }
+    .logo {
+      display: flex;
+      justify-content: center;
+      margin: 0 0 10px; /* Reduzida a margem inferior */
+    }
+    .logo img {
+      width: 100px; /* Reduzido um pouco o tamanho do logo */
+      height: 100px;
+      border-radius: 50%;
+    }
+
+    /* Estilos do cronômetro e relógio */
+    .timer-container {
+      text-align: center;
+      background-color: #2a2a2a; /* Fundo para o bloco do cronômetro */
+      padding: 10px 0; /* Padding interno do cronômetro */
+      margin-bottom: 10px; /* Espaço abaixo do cronômetro, antes das abas */
+    }
+    #currentDateTime {
+      font-size: 1.1em;
+      color: #00e676;
+      margin-bottom: 10px;
+    }
+    #timerDisplay {
+      font-size: 2.2em; /* Reduzido um pouco para caber melhor */
+      font-weight: bold;
+      color: #00e676;
+      margin-bottom: 10px;
+    }
+    .timer-input {
+      display: flex;
+      justify-content: center;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+    .timer-input input[type="number"] { /* Específico para inputs de número */
+      width: 40px; /* Ajuste para largura dos inputs */
+      padding: 5px;
+      font-size: 1em;
+      text-align: center;
+      background-color: #333;
+      color: #f0f0f0;
+      border: 1px solid #ff6600;
+      border-radius: 4px;
+    }
+    .timer-buttons button {
+      background-color: #ff6600;
+      color: #1a1a1a;
+      border: none;
+      padding: 8px 15px;
+      margin: 0 5px;
+      border-radius: 5px;
+      font-size: 0.9em;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    .timer-buttons button:hover {
+      background-color: #e65c00;
+    }
+
+    /* Estilos das abas */
+    .tab-container {
+      display: flex;
+      justify-content: space-around;
+      background-color: #333;
+      padding: 10px 0;
+      border-bottom: 1px solid #ff6600;
+    }
+    .tab-button {
+      background-color: #333;
+      color: #f0f0f0;
+      border: none;
+      padding: 10px 15px;
+      cursor: pointer;
+      font-size: 16px;
+      flex-grow: 1;
+      text-align: center;
+    }
+    .tab-button.active {
+      background-color: #ff6600;
+      color: #1a1a1a;
+    }
+
+    /* Conteúdo das abas */
+    .tab-content {
+      display: none;
+      padding: 20px;
+      flex-grow: 1;
+      overflow-y: auto; /* Adiciona scroll se o conteúdo for muito grande */
+      box-sizing: border-box; /* Garante que o padding não adicione à altura total */
+    }
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Estilos do checklist */
+    .category {
+      margin-top: 20px; /* Reduzido um pouco a margem superior */
+      background-color: #2a2a2a;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .category h2 {
+      color: #ff6600;
+      border-bottom: 1px solid #f0f0f0;
+      padding-bottom: 5px;
+      margin-top: 0;
+      margin-bottom: 15px;
+    }
+    label {
+      display: flex; /* Usar flexbox para alinhar checkbox e texto */
+      align-items: center;
+      margin: 10px 0; /* Aumentar margem para melhor espaçamento */
+      font-size: 1.1em; /* Aumentar tamanho do fonte */
+      cursor: pointer; /* Indicar que é clicável */
+    }
+    input[type="checkbox"] {
+      margin-right: 12px; /* Aumentar margem à direita do checkbox */
+      transform: scale(1.2); /* Aumentar tamanho do checkbox */
+      accent-color: #ff6600; /* Mudar a cor do checkbox (modern browsers) */
+    }
+    .checklist-buttons {
+        text-align: center;
+        margin-top: 25px;
+        margin-bottom: 10px;
+    }
+    .checklist-buttons button {
+        background-color: #00e676;
+        color: #1a1a1a;
+        border: none;
+        padding: 10px 20px;
+        margin: 0 10px;
+        border-radius: 5px;
+        font-size: 1em;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    .checklist-buttons button:hover {
+        background-color: #00b35a;
+    }
+    .print-info-section {
+        background-color: #2a2a2a;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 30px;
+        border: 1px dashed #ff6600;
+    }
+    .print-info-section p {
+        margin: 8px 0;
+        font-size: 1.1em;
+    }
+    .print-info-section span {
+        display: inline-block;
+        min-width: 150px;
+        border-bottom: 1px solid #f0f0f0;
+        padding-bottom: 2px;
+        margin-left: 10px;
+    }
+
+    /* Estilos para a nova aba de Registros */
+    .form-group {
+        margin-bottom: 15px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        color: #ff6600;
+    }
+    .form-group input[type="date"],
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group input[type="datetime-local"], /* Adicionado para data e hora automática */
+    .form-group textarea {
+        width: calc(100% - 22px); /* Ajusta para padding e borda */
+        padding: 10px;
+        border: 1px solid #ff6600;
+        background-color: #333;
+        color: #f0f0f0;
+        border-radius: 5px;
+        font-size: 1em;
+    }
+    .form-group textarea {
+        min-height: 80px;
+        resize: vertical;
+    }
+    .form-buttons button {
+        background-color: #00e676;
+        color: #1a1a1a;
+        border: none;
+        padding: 10px 20px;
+        margin-right: 10px;
+        border-radius: 5px;
+        font-size: 1em;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    .form-buttons button:hover {
+        background-color: #00b35a;
+    }
+    #reportOutput {
+        margin-top: 30px;
+        border-top: 1px solid #ff6600;
+        padding-top: 20px;
+    }
+    .report-entry {
+        background-color: #2a2a2a;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        border-left: 5px solid #ff6600;
+    }
+    .report-entry h3 {
+        color: #f0f0f0;
+        margin-top: 0;
+        margin-bottom: 5px;
+    }
+    .report-entry p {
+        margin: 5px 0;
+        font-size: 0.9em;
+    }
+    .report-entry .delete-btn {
+        background-color: #e60000;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8em;
+        float: right; /* Alinha o botão à direita */
+    }
+    .report-entry .delete-btn:hover {
+        background-color: #b30000;
+    }
+
+    /* Estilos para a seção de Upload de Receitas */
+    .upload-section {
+        background-color: #2a2a2a;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .upload-section input[type="file"] {
+        margin-bottom: 10px;
+        padding: 8px;
+        background-color: #333;
+        color: #f0f0f0;
+        border: 1px solid #ff6600;
+        border-radius: 4px;
+    }
+    .upload-section button {
+        background-color: #00e676;
+        color: #1a1a1a;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px;
+        font-size: 0.9em;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    .upload-section button:hover {
+        background-color: #00b35a;
+    }
+    #uploadedRecipesList {
+        margin-top: 20px;
+        border-top: 1px solid #ff6600;
+        padding-top: 15px;
+    }
+    .recipe-item {
+        background-color: #3a3a3a;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .recipe-item a {
+        color: #00e676;
+        text-decoration: none;
+        margin-right: 10px;
+        font-weight: bold;
+    }
+    .recipe-item a:hover {
+        text-decoration: underline;
+    }
+    .recipe-item span {
+        font-size: 0.9em;
+        color: #bbb;
+    }
+    .recipe-item .delete-recipe-btn {
+        background-color: #e60000;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8em;
+    }
+    .recipe-item .delete-recipe-btn:hover {
+        background-color: #b30000;
+    }
+
+
+    /* Media Queries para responsividade */
+    @media (max-width: 768px) {
+        .timer-input input[type="number"] {
+            width: 35px;
+            font-size: 0.9em;
+        }
+        .timer-buttons button {
+            padding: 7px 12px;
+            font-size: 0.85em;
+            margin: 0 3px;
+        }
+        .tab-button {
+            font-size: 14px;
+            padding: 8px 10px;
+        }
+        .category h2 {
+            font-size: 1.3em;
+        }
+        label {
+            font-size: 1em;
+        }
+        input[type="checkbox"] {
+            transform: scale(1.1);
+        }
+        .form-group input, .form-group textarea {
+            font-size: 0.9em;
+        }
+        .form-buttons button {
+            padding: 8px 15px;
+            font-size: 0.9em;
+        }
+    }
+
+    @media (max-width: 480px) {
+        h1 {
+            font-size: 1.5em;
+        }
+        .logo img {
+            width: 80px;
+            height: 80px;
+        }
+        #currentDateTime {
+            font-size: 0.9em;
+        }
+        #timerDisplay {
+            font-size: 1.8em;
+        }
+        .timer-input {
+            flex-wrap: wrap; /* Permite que os inputs quebrem para a próxima linha */
+        }
+        .timer-input input[type="number"] {
+            width: 30px;
+            font-size: 0.8em;
+        }
+        .timer-buttons button {
+            padding: 6px 10px;
+            font-size: 0.8em;
+            margin: 0 2px;
+        }
+        .tab-button {
+            font-size: 12px;
+            padding: 6px 8px;
+        }
+        .category {
+            padding: 10px;
+        }
+        .category h2 {
+            font-size: 1.2em;
+        }
+        label {
+            font-size: 0.9em;
+        }
+        input[type="checkbox"] {
+            transform: scale(1.0);
+        }
+        .print-info-section p {
+            font-size: 1em;
+        }
+    }
+
+    /* Estilos para impressão (específicos para Checklist) */
+    @media print {
+        body {
+            background-color: #fff;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+        /* Oculta todos os elementos que não são o conteúdo da aba Checklist */
+        .fixed-header-container, .tab-container, #Registros, #Principal, .checklist-buttons button, .form-buttons, .delete-btn, .upload-section {
+            display: none !important;
+        }
+        /* Garante que a aba Checklist seja exibida para impressão */
+        #Checklist {
+            display: block !important;
+            padding: 20px !important;
+            margin-top: 0 !important; /* Remove qualquer margem superior da aba */
+            overflow: visible !important; /* Permite que todo o conteúdo seja impresso */
+            display: block !important; /* Voltar para bloco normal para fluxo de documentos */
+        }
+
+        /* Move a seção de informações para impressão para o topo */
+        .print-info-section {
+            order: -1; /* Garante que ele apareça primeiro no layout flexbox da impressão */
+            margin-bottom: 20px; /* Adiciona espaço abaixo dele */
+            border: 1px solid #ccc;
+            background-color: #fff;
+            padding: 15px;
+            box-shadow: none; /* Remove sombra na impressão */
+        }
+
+        /* Removido: .page-break { page-break-after: always; } para impressão contínua */
+
+        .category {
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            box-shadow: none;
+            page-break-inside: avoid; /* Evita quebra de página dentro de uma categoria */
+        }
+        .category h2 {
+            color: #333;
+            border-bottom-color: #ccc;
+        }
+        label {
+            color: #000;
+            font-size: 0.9em; /* Diminui a fonte para impressão */
+        }
+        input[type="checkbox"] {
+            /* No print, checkboxes might not render well. Consider replacing with a checkmark or similar if needed */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border: 1px solid #888;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        input[type="checkbox"]:checked::after {
+            content: 'X'; /* Simple checkmark for print */
+            display: block;
+            text-align: center;
+            line-height: 14px;
+            font-size: 12px;
+            color: #333;
+        }
+        .print-info-section span {
+            border-bottom: 1px solid #888;
+        }
+        .report-entry {
+            border: 1px solid #eee;
+            background-color: #f9f9f9;
+            box-shadow: none;
+            page-break-inside: avoid;
+        }
+        #reportOutput h2 {
+            color: #333;
+        }
+  </style>
+</head>
+<body>
+  <div class="fixed-header-container">
+    <h1>Harley Beer Controle</h1>
+    <div class="logo">
+      <img src="Icone.png" alt="Logo Harley Beer">
+    </div>
+
+    <div class="timer-container">
+      <div id="currentDateTime"></div>
+      <h2>Cronômetro de Brassagem</h2>
+      <div class="timer-input">
+        <input type="number" id="hoursInput" value="0" min="0" max="23"> H
+        <input type="number" id="minutesInput" value="0" min="0" max="59"> M
+        <input type="number" id="secondsInput" value="0" min="0" max="59"> S
+      </div>
+      <div id="timerDisplay">00:00:00</div>
+      <div class="timer-buttons">
+        <button onclick="startTimer()">Iniciar</button>
+        <button onclick="pauseTimer()">Pausar</button>
+        <button onclick="resetTimer()">Resetar</button>
+      </div>
+    </div>
+
+    <div class="tab-container">
+      <button class="tab-button active" onclick="openTab(event, 'Principal')">Principal</button>
+      <button class="tab-button" onclick="openTab(event, 'Checklist')">Checklist</button>
+      <button class="tab-button" onclick="openTab(event, 'Registros')">Registros</button>
+    </div>
+  </div>
+
+  <div id="Principal" class="tab-content active">
+    <p>Bem-vindo ao controle Harley Beer! Use o cronômetro acima para suas brassagens e as abas Checklist e Registros para acompanhar suas tarefas e histórico.</p>
+
+    <div class="upload-section">
+        <h2>Carregue Novas Receitas</h2>
+        <input type="file" id="recipeUploadInput" accept=".pdf,.docx">
+        <button onclick="uploadRecipe()">Fazer Upload</button>
+        <div id="uploadedRecipesList">
+            <h3>Receitas Carregadas:</h3>
+            <p id="noRecipesMessage" style="text-align: center; color: #888; display: none;">Nenhuma receita carregada ainda.</p>
+        </div>
+    </div>
+  </div>
+
+  <div id="Checklist" class="tab-content">
+    <div class="checklist-buttons">
+        <button onclick="confirmClearChecklist()">Limpar Seleções</button>
+        <button id="printChecklistBtn" onclick="printChecklist()">Imprimir Checklist</button>
+    </div>
+
+    <div class="print-info-section">
+        <h3>Informações para Impressão:</h3>
+        <p>Data: <span></span></p>
+        <p>Hora: <span></span></p>
+        <p>Nome da Cerveja: <span></span></p>
+        <p>OG Esperado: <span></span></p>
+        <p>FG Esperado: <span></span></p>
+        <p>IBU: <span></span></p>
+        <p>ABV: <span></span></p>
+        <p>Tempo de Fermentação: <span></span></p>
+        <p>Tempo de Maturação a Frio: <span></span></p>
+        <p>Pronta para consumo em: <span></span></p>
+    </div>
+
+    <div class="category">
+      <h2>1. Preparação e Sanitização</h2>
+      <label><input type="checkbox"> Separar os ingredientes</label>
+      <label><input type="checkbox"> Sanitizar utensílios e superfícies</label>
+      <label><input type="checkbox"> Verificar e calibrar equipamentos</label>
+    </div>
+
+    <div class="category">
+      <h2>2. Mosturação</h2>
+      <label><input type="checkbox"> Adicionar maltes</label>
+      <label><input type="checkbox"> Aquecer água de mostura</label>
+      <label><input type="checkbox"> Manter temperatura correta</label>
+      <label><input type="checkbox"> Recircular o mosto</label>
+    </div>
+
+    <div class="category">
+      <h2>3. Fervura</h2>
+      <label><input type="checkbox"> Adicionar aditivos</label>
+      <label><input type="checkbox"> Adicionar clarificante</label>
+      <label><input type="checkbox"> Adicionar lúpulos</label>
+      <label><input type="checkbox"> Iniciar fervura</label>
+    </div>
+
+    <div class="category">
+      <h2>4. Resfriamento</h2>
+      <label><input type="checkbox"> Oxigenar o mosto</label>
+      <label><input type="checkbox"> Resfriar o mosto</label>
+      <label><input type="checkbox"> Transferir para fermentador</label>
+    </div>
+
+    <div class="category">
+      <h2>5. Fermentação</h2>
+      <label><input type="checkbox"> Controlar temperatura</label>
+      <label><input type="checkbox"> Inocular levedura</label>
+      <label><input type="checkbox"> Medir FG</label>
+      <label><input type="checkbox"> Medir OG</label>
+      <label><input type="checkbox"> Verificar estabilidade FG</label>
+    </div>
+
+    <div class="category">
+      <h2>6. Clarificação e Maturação</h2>
+      <label><input type="checkbox"> Adicionar clarificante final</label>
+      <label><input type="checkbox"> Maturar em baixa temperatura</label>
+      <label><input type="checkbox"> Transferir para maturação</label>
+    </div>
+
+    <div class="category">
+      <h2>7. Envase</h2>
+      <label><input type="checkbox"> Adicionar priming sugar ou CO₂</label>
+      <label><input type="checkbox"> Calibrar pressão de CO₂</label>
+      <label><input type="checkbox"> Engarrafar ou envasar</label>
+      <label><input type="checkbox"> Sanitizar garrafas ou barris</label>
+      <label><input type="checkbox"> Tirar o ar do barril</label>
+    </div>
+  </div>
+
+  <div id="Registros" class="tab-content">
+    <h2>Novo Registro de Brassagem</h2>
+    <div class="form-group">
+        <label for="brewDateTime">Data e Hora da Brassagem:</label>
+        <input type="datetime-local" id="brewDateTime">
+    </div>
+    <div class="form-group">
+        <label for="beerName">Nome da Cerveja:</label>
+        <input type="text" id="beerName" placeholder="Ex: American Pale Ale">
+    </div>
+    <div class="form-group">
+        <label for="og">OG (Densidade Original):</label>
+        <input type="number" id="og" placeholder="Ex: 1.050" step="0.001">
+    </div>
+    <div class="form-group">
+        <label for="fg">FG (Densidade Final):</label>
+        <input type="number" id="fg" placeholder="Ex: 1.010" step="0.001">
+    </div>
+    <div class="form-group">
+        <label for="notes">Notas (Opcional):</label>
+        <textarea id="notes" placeholder="Descreva brevemente a brassagem, observações, etc."></textarea>
+    </div>
+    <div class="form-buttons">
+        <button onclick="saveBrewingRecord()">Salvar Registro</button>
+        <button onclick="printBrewingRecords()">Imprimir Relatório</button>
+    </div>
+
+    <div id="reportOutput">
+        <h2>Histórico de Brassagens</h2>
+        <p id="noRecordsMessage" style="text-align: center; color: #888;">Nenhum registro ainda.</p>
+    </div>
+  </div>
+
+  <audio id="alarmSound" src="alarm.mp3" preload="auto"></audio>
+  <script>
+    // --- Configuração do IndexedDB ---
+    const DB_NAME = 'HarleyBeerDB';
+    const DB_VERSION = 1; // Incremente esta versão se alterar a estrutura do banco de dados
+    const BREWING_STORE_NAME = 'brewingRecords';
+    const RECIPES_STORE_NAME = 'recipes';
+    let db;
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+            request.onupgradeneeded = function(event) {
+                db = event.target.result;
+                // Cria o object store para registros de brassagem se não existir
+                if (!db.objectStoreNames.contains(BREWING_STORE_NAME)) {
+                    db.createObjectStore(BREWING_STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                }
+                // Cria o object store para receitas se não existir
+                if (!db.objectStoreNames.contains(RECIPES_STORE_NAME)) {
+                    db.createObjectStore(RECIPES_STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                }
+            };
+
+            request.onsuccess = function(event) {
+                db = event.target.result;
+                resolve(db);
+            };
+
+            request.onerror = function(event) {
+                console.error('Erro ao abrir o IndexedDB:', event.target.errorCode);
+                reject(event.target.errorCode);
+            };
+        });
+    }
+
+    // --- Funções auxiliares para IndexedDB ---
+    function getObjectStore(storeName, mode) {
+        const transaction = db.transaction([storeName], mode);
+        return transaction.objectStore(storeName);
+    }
+
+    // --- Funções para o controle das abas ---
+    function openTab(evt, tabName) {
+      var i, tabcontent, tablinks;
+
+      tabcontent = document.getElementsByClassName("tab-content");
+      for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+        tabcontent[i].classList.remove("active");
+      }
+
+      tablinks = document.getElementsByClassName("tab-button");
+      for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].classList.remove("active");
+      }
+
+      document.getElementById(tabName).style.display = "block";
+      document.getElementById(tabName).classList.add("active");
+      evt.currentTarget.classList.add("active");
+
+      // Se a aba de Registros for aberta, recarrega os registros e preenche a data/hora
+      if (tabName === 'Registros') {
+          loadBrewingRecords();
+          setBrewDateTimeToCurrent(); // Chama aqui para preencher automaticamente
+      }
+      // Se a aba Principal for aberta, carrega as receitas
+      if (tabName === 'Principal') {
+          loadUploadedRecipes();
+      }
+    }
+
+    // --- Funções para o relógio digital ---
+    function updateCurrentDateTime() {
+        const now = new Date();
+        const optionsDate = { day: '2-digit', month: '2-digit', year: 'numeric' };
+        const optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+        const dateString = now.toLocaleDateString('pt-BR', optionsDate);
+        const timeString = now.toLocaleTimeString('pt-BR', optionsTime);
+        document.getElementById('currentDateTime').textContent = `Data: ${dateString} | Hora: ${timeString}`;
+    }
+
+    // --- Funções para o cronômetro ---
+    let timer;
+    let totalSeconds; // Total de segundos para o cronômetro
+    let remainingSeconds; // Segundos restantes
+    let isRunning = false;
+    const timerDisplay = document.getElementById('timerDisplay');
+    const hoursInput = document.getElementById('hoursInput');
+    const minutesInput = document.getElementById('minutesInput');
+    const secondsInput = document.getElementById('secondsInput');
+    const alarmSound = document.getElementById('alarmSound');
+
+    // Função para formatar o tempo
+    function formatTime(secs) {
+      const h = String(Math.floor(secs / 3600)).padStart(2, '0');
+      const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
+      const s = String(secs % 60).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+
+    // Função para definir o tempo do cronômetro a partir dos inputs
+    function setTimerFromInputs() {
+        const hours = parseInt(hoursInput.value) || 0;
+        const minutes = parseInt(minutesInput.value) || 0;
+        const seconds = parseInt(secondsInput.value) || 0;
+
+        totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+        remainingSeconds = totalSeconds;
+        timerDisplay.textContent = formatTime(remainingSeconds);
+    }
+
+    // Função para atualizar o cronômetro
+    function updateTimer() {
+      if (remainingSeconds > 0) {
+        remainingSeconds--;
+        timerDisplay.textContent = formatTime(remainingSeconds);
+      } else {
+        clearInterval(timer);
+        isRunning = false;
+        timerDisplay.textContent = "00:00:00"; // Garante que exibe 00:00:00
+        playAlarm(); // Toca o alarme quando o tempo termina
+      }
+    }
+
+    // Função para iniciar o cronômetro
+    function startTimer() {
+      if (!isRunning) {
+        // Se o cronômetro não estiver rodando, primeiro define o tempo
+        setTimerFromInputs();
+        if (remainingSeconds > 0) { // Inicia apenas se houver tempo definido
+            isRunning = true;
+            timer = setInterval(updateTimer, 1000);
+        } else {
+            alert('Por favor, defina um tempo para o cronômetro.');
+        }
+      }
+    }
+
+    // Função para pausar o cronômetro
+    function pauseTimer() {
+      if (isRunning) {
+        isRunning = false;
+        clearInterval(timer);
+      }
+    }
+
+    // Função para resetar o cronômetro
+    function resetTimer() {
+      pauseTimer();
+      totalSeconds = 0;
+      remainingSeconds = 0;
+      timerDisplay.textContent = formatTime(remainingSeconds);
+      hoursInput.value = "0";
+      minutesInput.value = "0";
+      secondsInput.value = "0";
+    }
+
+    // Função para tocar o alarme
+    function playAlarm() {
+        if (alarmSound) {
+            alarmSound.play();
+            // Opcional: para o alarme depois de alguns segundos
+            setTimeout(() => {
+                alarmSound.pause();
+                alarmSound.currentTime = 0; // Reinicia o som
+            }, 5000); // Toca por 5 segundos
+        } else {
+            console.warn("Arquivo de áudio do alarme não encontrado ou não carregado.");
+        }
+    }
+
+    // --- Funções para Checklist ---
+    function confirmClearChecklist() {
+        if (confirm('Tem certeza que deseja limpar todas as seleções do checklist?')) {
+            clearChecklist();
+        }
+    }
+
+    function clearChecklist() {
+        const checkboxes = document.querySelectorAll('#Checklist input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        // A mensagem de alerta foi movida para dentro da confirmação para aparecer apenas se o usuário confirmar
+    }
+
+    function printChecklist() {
+        // Popula as informações para impressão
+        const printInfoSection = document.querySelector('.print-info-section');
+        // const now = new Date(); // Removed automatic date/time population
+        // printInfoSection.querySelector('p:nth-child(2) span').textContent = now.toLocaleDateString('pt-BR'); // Removed
+        // printInfoSection.querySelector('p:nth-child(3) span').textContent = now.toLocaleTimeString('pt-BR'); // Removed
+
+        // Esses campos precisarão ser preenchidos manualmente pelo usuário antes de imprimir,
+        // ou você pode adicionar inputs para eles na própria interface para facilitar.
+        // Por enquanto, eles ficarão em branco se não forem preenchidos por JS.
+        // Exemplo:
+        // document.getElementById('beerNameInput').value; // Se você tivesse um input com esse ID
+        // printInfoSection.querySelector('p:nth-child(4) span').textContent = 'Minha Cerveja Ale'; // Exemplo manual
+
+        // Oculta todos os elementos que não são o conteúdo da aba Checklist
+        const elementsToHide = document.querySelectorAll('body > *:not(#Checklist)');
+
+        elementsToHide.forEach(el => {
+            if (el.id !== 'Checklist') {
+                el.style.display = 'none';
+            }
+        });
+
+        // Garante que a aba Checklist esteja visível e ajuste o padding
+        const checklistTab = document.getElementById('Checklist');
+        checklistTab.style.display = 'block';
+        checklistTab.style.paddingTop = '0';
+        checklistTab.style.margin = '0';
+
+        window.print();
+
+        // Restaura a visibilidade dos elementos após a impressão
+        elementsToHide.forEach(el => {
+            if (el.id !== 'Checklist') {
+                el.style.display = '';
+            }
+        });
+        // Reajusta o padding da aba Checklist para o estado normal de visualização
+        adjustContentPadding();
+    }
+
+
+    // --- Funções para Registros de Brassagem (usando IndexedDB) ---
+    async function loadBrewingRecords() {
+        try {
+            const records = [];
+            const store = getObjectStore(BREWING_STORE_NAME, 'readonly');
+            const request = store.openCursor();
+
+            request.onsuccess = function(event) {
+                const cursor = event.target.result;
+                if (cursor) {
+                    records.push(cursor.value);
+                    cursor.continue();
+                } else {
+                    displayBrewingRecords(records);
+                }
+            };
+            request.onerror = function(event) {
+                console.error("Erro ao carregar registros de brassagem:", event.target.errorCode);
+                displayBrewingRecords([]); // Exibe vazio em caso de erro
+            };
+        } catch (error) {
+            console.error("Erro ao acessar IndexedDB para registros de brassagem:", error);
+            displayBrewingRecords([]);
+        }
+    }
+
+    async function saveBrewingRecord() {
+        const brewDateTime = document.getElementById('brewDateTime').value;
+        const beerName = document.getElementById('beerName').value.trim();
+        const og = parseFloat(document.getElementById('og').value);
+        const fg = parseFloat(document.getElementById('fg').value);
+        const notes = document.getElementById('notes').value.trim();
+
+        if (!brewDateTime || !beerName || isNaN(og) || isNaN(fg) || og <= 0 || fg <= 0) {
+            alert('Por favor, preencha a Data e Hora da Brassagem, Nome da Cerveja, OG e FG (com valores válidos maiores que zero).');
+            return;
+        }
+
+        const abv = ((og - fg) * 131.25).toFixed(2);
+
+        const newRecord = {
+            dateTime: brewDateTime,
+            name: beerName,
+            og: og,
+            fg: fg,
+            abv: abv,
+            notes: notes
+        };
+
+        try {
+            const store = getObjectStore(BREWING_STORE_NAME, 'readwrite');
+            const request = store.add(newRecord);
+
+            request.onsuccess = function() {
+                alert('Registro salvo com sucesso!');
+                document.getElementById('beerName').value = '';
+                document.getElementById('og').value = '';
+                document.getElementById('fg').value = '';
+                document.getElementById('notes').value = '';
+                setBrewDateTimeToCurrent();
+                loadBrewingRecords(); // Recarrega a lista
+            };
+
+            request.onerror = function(event) {
+                console.error("Erro ao salvar registro:", event.target.errorCode);
+                alert('Erro ao salvar registro.');
+            };
+        } catch (error) {
+            console.error("Erro ao acessar IndexedDB para salvar registro:", error);
+            alert('Erro ao acessar o banco de dados para salvar registro.');
+        }
+    }
+
+    function displayBrewingRecords(records) {
+        const reportOutput = document.getElementById('reportOutput');
+        reportOutput.innerHTML = '<h2>Histórico de Brassagens</h2>';
+
+        if (records.length === 0) {
+            reportOutput.innerHTML += '<p id="noRecordsMessage" style="text-align: center; color: #888;">Nenhum registro ainda.</p>';
+            return;
+        }
+
+        records.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+
+        records.forEach(record => {
+            const entryDiv = document.createElement('div');
+            entryDiv.classList.add('report-entry');
+            entryDiv.setAttribute('data-id', record.id);
+
+            const recordDate = new Date(record.dateTime);
+            const formattedDate = recordDate.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            const formattedTime = recordDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            entryDiv.innerHTML = `
+                <button class="delete-btn" onclick="deleteBrewingRecord(${record.id})">Excluir</button>
+                <h3>${record.name}</h3>
+                <p><strong>Data:</strong> ${formattedDate} &nbsp;&nbsp; <strong>Hora:</strong> ${formattedTime}</p>
+                <p><strong>OG:</strong> ${record.og}</p>
+                <p><strong>FG:</strong> ${record.fg}</p>
+                <p><strong>ABV:</strong> ${record.abv}%</p>
+                ${record.notes ? `<p><strong>Notas:</strong> ${record.notes}</p>` : ''}
+            `;
+            reportOutput.appendChild(entryDiv);
+        });
+    }
+
+    async function deleteBrewingRecord(id) {
+        if (!confirm('Tem certeza que deseja excluir este registro?')) {
+            return;
+        }
+        try {
+            const store = getObjectStore(BREWING_STORE_NAME, 'readwrite');
+            const request = store.delete(id);
+
+            request.onsuccess = function() {
+                loadBrewingRecords(); // Recarrega a lista
+            };
+            request.onerror = function(event) {
+                console.error("Erro ao excluir registro:", event.target.errorCode);
+                alert('Erro ao excluir registro.');
+            };
+        } catch (error) {
+            console.error("Erro ao acessar IndexedDB para excluir registro:", error);
+            alert('Erro ao acessar o banco de dados para excluir registro.');
+        }
+    }
+
+    function printBrewingRecords() {
+        // Abre a janela de impressão do navegador
+        window.print();
+        alert("Para salvar o relatório como PDF, na janela de impressão, escolha 'Salvar como PDF' ou uma impressora PDF em vez de uma impressora física.");
+    }
+
+    // --- Funções para Upload de Receitas (usando IndexedDB) ---
+    async function loadUploadedRecipes() {
+        try {
+            const recipes = [];
+            const store = getObjectStore(RECIPES_STORE_NAME, 'readonly');
+            const request = store.openCursor();
+
+            request.onsuccess = function(event) {
+                const cursor = event.target.result;
+                if (cursor) {
+                    recipes.push(cursor.value);
+                    cursor.continue();
+                } else {
+                    displayUploadedRecipes(recipes);
+                }
+            };
+            request.onerror = function(event) {
+                console.error("Erro ao carregar receitas:", event.target.errorCode);
+                displayUploadedRecipes([]);
+            };
+        } catch (error) {
+            console.error("Erro ao acessar IndexedDB para receitas:", error);
+            displayUploadedRecipes([]);
+        }
+    }
+
+    function displayUploadedRecipes(recipes) {
+        const listContainer = document.getElementById('uploadedRecipesList');
+        listContainer.innerHTML = '<h3>Receitas Carregadas:</h3>';
+        const noRecipesMessage = document.getElementById('noRecipesMessage');
+
+        if (recipes.length === 0) {
+            noRecipesMessage.style.display = 'block';
+            return;
+        } else {
+            noRecipesMessage.style.display = 'none';
+        }
+
+        recipes.forEach(recipe => {
+            const recipeItem = document.createElement('div');
+            recipeItem.classList.add('recipe-item');
+            recipeItem.setAttribute('data-id', recipe.id);
+
+            const fileLink = document.createElement('a');
+            fileLink.href = recipe.fileData; // Base64 data
+            fileLink.download = recipe.fileName;
+            fileLink.textContent = recipe.fileName;
+
+            const uploadDate = new Date(recipe.uploadDate);
+            const formattedDate = uploadDate.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            const dateSpan = document.createElement('span');
+            dateSpan.textContent = ` (Upload: ${formattedDate})`;
+
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-recipe-btn');
+            deleteButton.textContent = 'Excluir';
+            deleteButton.onclick = () => deleteUploadedRecipe(recipe.id);
+
+            recipeItem.appendChild(fileLink);
+            recipeItem.appendChild(dateSpan);
+            recipeItem.appendChild(deleteButton);
+            listContainer.appendChild(recipeItem);
+        });
+    }
+
+    function uploadRecipe() {
+        const fileInput = document.getElementById('recipeUploadInput');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert('Por favor, selecione um arquivo para upload.');
+            return;
+        }
+
+        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']; // PDF and DOCX
+        if (!allowedTypes.includes(file.type)) {
+            alert('Por favor, selecione apenas arquivos PDF ou DOCX.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async function(event) {
+            const newRecipe = {
+                fileName: file.name,
+                fileData: event.target.result, // Armazena o arquivo como Base64
+                uploadDate: new Date().toISOString()
+            };
+            try {
+                const store = getObjectStore(RECIPES_STORE_NAME, 'readwrite');
+                const request = store.add(newRecipe);
+
+                request.onsuccess = function() {
+                    alert('Receita carregada com sucesso!');
+                    fileInput.value = ''; // Limpa o input file
+                    loadUploadedRecipes(); // Recarrega a lista
+                };
+                request.onerror = function(event) {
+                    console.error("Erro ao carregar receita:", event.target.errorCode);
+                    alert('Erro ao carregar receita.');
+                };
+            } catch (error) {
+                console.error("Erro ao acessar IndexedDB para upload de receita:", error);
+                alert('Erro ao acessar o banco de dados para upload de receita.');
+            }
+        };
+        reader.readAsDataURL(file); // Lê o arquivo como Data URL (Base64)
+    }
+
+    async function deleteUploadedRecipe(id) {
+        if (!confirm('Tem certeza que deseja excluir esta receita?')) {
+            return;
+        }
+        try {
+            const store = getObjectStore(RECIPES_STORE_NAME, 'readwrite');
+            const request = store.delete(id);
+
+            request.onsuccess = function() {
+                loadUploadedRecipes(); // Recarrega a lista
+            };
+            request.onerror = function(event) {
+                console.error("Erro ao excluir receita:", event.target.errorCode);
+                alert('Erro ao excluir receita.');
+            };
+        } catch (error) {
+            console.error("Erro ao acessar IndexedDB para excluir receita:", error);
+            alert('Erro ao acessar o banco de dados para excluir receita.');
+        }
+    }
+
+    // Adiciona a função para preencher a data e hora atual no input datetime-local
+    function setBrewDateTimeToCurrent() {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Ajusta para o fuso horário local
+        document.getElementById('brewDateTime').value = now.toISOString().slice(0, 16);
+    }
+
+    // --- Ajustar padding do conteúdo para acomodar o cabeçalho fixo ---
+    function adjustContentPadding() {
+        const fixedHeader = document.querySelector('.fixed-header-container');
+        if (fixedHeader) {
+            const headerHeight = fixedHeader.offsetHeight; // Obtém a altura real do cabeçalho fixo
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.style.paddingTop = headerHeight + 20 + 'px'; // Adiciona um pouco mais de padding
+            });
+        }
+    }
+
+    // Chama a função ao carregar a página e ao redimensionar
+    document.addEventListener('DOMContentLoaded', async () => {
+      timerDisplay.textContent = formatTime(0);
+      adjustContentPadding(); // Ajusta o padding inicial
+      updateCurrentDateTime(); // Exibe a data e hora atual
+      setInterval(updateCurrentDateTime, 1000); // Atualiza a cada segundo
+      // setBrewDateTimeToCurrent(); REMOVIDO daqui para ser chamado apenas ao abrir a aba Registros
+
+      // Abre o banco de dados e então carrega os dados
+      try {
+          await openDB();
+          loadBrewingRecords(); // Carrega os registros de brassagem
+          loadUploadedRecipes(); // Carrega as receitas salvas
+      } catch (error) {
+          console.error("Falha ao inicializar o banco de dados:", error);
+          alert("Não foi possível inicializar o banco de dados local. Algumas funcionalidades podem não estar disponíveis.");
+      }
+    });
+
+    window.addEventListener('resize', adjustContentPadding); // Ajusta o padding ao redimensionar
+  </script>
+</body>
+</html>
